@@ -100,8 +100,16 @@ def check_session():
     return jsonify(user.to_dict()), 200
 
 
-@app.route('/shelters', methods=['POST'])
+@app.route('/shelters', methods=['GET', 'POST'])
 def create_shelter():
+    
+    if request.method == 'GET':
+        all_shelters = Shelter.query.all()
+        results = []
+        for shelter in all_shelters:
+            results.append(shelter.to_dict())
+        return results, 200
+        
     # Get the user from the session
     user_id = session.get('user_id')
     
@@ -143,3 +151,31 @@ def create_shelter():
     db.session.commit()
 
     return jsonify({'message': 'Shelter created successfully'}), 201
+
+@app.route('/shelters/<int:id>', methods = ['GET', 'PATCH', 'DELETE'])
+def shelter_by_id(id):
+    
+    shelter = Shelter.query.filter(Shelter.id == id).first()
+    
+    if shelter is None:
+        return {'error': "Shelter not found"}, 404
+    
+    if request.method == 'GET':
+        return shelter.to_dict(),200
+    
+    elif request.method == 'DELETE':
+        db.session.delete(shelter)
+        db.session.commit()
+        return {}, 204
+    
+    elif request.method == "PATCH":
+        data = request.get_json()
+        
+        for field in data: 
+            setattr(shelter, field, data[field])
+        
+        db.session.add(shelter)
+        db.session.commit()
+    
+    return shelter.to_dict(), 200
+        

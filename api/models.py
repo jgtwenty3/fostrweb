@@ -66,7 +66,20 @@ class Shelter(db.Model, SerializerMixin):
     animals = db.relationship('Animal', back_populates='shelter')  # Shelter owns many animals
 
     serialize_rules = ('-owner.password_hash',)  # Exclude owner password when serializing shelter
-
+    def to_dict(self):
+        result = {
+            'id': self.id,
+            'name': self.name,
+            'email': self.email,
+            'phone': self.phone,
+            'street_address': self.street_address,
+            'city': self.city,
+            'state': self.state.name,
+            'zipcode': self.zipcode,
+            'about': self.about,
+            # Exclude owner details to avoid recursion
+        }
+        return result
 
 class Animal(db.Model, SerializerMixin):
     __tablename__ = "animals"
