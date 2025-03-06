@@ -5,7 +5,8 @@ from flask_socketio import SocketIO, emit
 from werkzeug.security import generate_password_hash
 import os
 from config import app, db, migrate, api
-from models import db, User, Shelter, Animal
+from models import db, User, Shelter, Animal, MedicalRecord
+from datetime import datetime
 
 
 def home():
@@ -100,9 +101,15 @@ def check_session():
     # Return the user data (could be useful for testing)
     return jsonify(user.to_dict()), 200
 
+@app.route('/logout', methods = ['DELETE'])
+def logout():
+    session.pop('user_id', None)
+    session.pop('user_role', None)
+
+    return {}, 204
 
 @app.route('/shelters', methods=['GET', 'POST'])
-def create_shelter():
+def all_shelters():
     
     if request.method == 'GET':
         all_shelters = Shelter.query.all()
@@ -121,31 +128,25 @@ def create_shelter():
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
-
-    # # Check if the user is an owner
-    # if user.role != 'owner':
-    #     return jsonify({'error': 'User is not authorized to create a shelter'}), 403
-
-    # If the user is an owner, proceed with shelter creation
+    
     shelter_data = request.get_json()
 
     # Check for required shelter fields
-    required_fields = ['shelter_name', 'shelter_email', 'shelter_phone', 'street_address', 'city', 'state', 'zipcode']
+    required_fields = ['name', 'email', 'phone', 'street_address', 'city', 'state', 'zipcode']
     for field in required_fields:
         if field not in shelter_data:
             return jsonify({'error': f'Missing {field} for shelter creation'}), 400
 
     # Create and add the shelter to the database
     new_shelter = Shelter(
-        name=shelter_data['shelter_name'],
-        email=shelter_data['shelter_email'],
-        phone=shelter_data['shelter_phone'],
+        name=shelter_data['name'],
+        email=shelter_data['email'],
+        phone=shelter_data['phone'],
         street_address=shelter_data['street_address'],
         city=shelter_data['city'],
         state=shelter_data['state'],
         zipcode=shelter_data['zipcode'],
         about=shelter_data.get('about', ''),
-        owner_id=user.id  # Link the shelter to the user (owner)
     )
 
     db.session.add(new_shelter)
@@ -221,7 +222,6 @@ def all_animals():
         
         return jsonify(new_animal.to_dict()), 201
 
-from datetime import datetime
 
 @app.route('/animals/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
 def animal_by_id(id):
@@ -261,3 +261,62 @@ def animal_by_id(id):
         db.session.commit()
     
     return animal.to_dict(), 200
+
+@app.route('/animals/<int:animal_id>/medical_records', methods=['GET', 'POST'])
+def manage_medical_records(animal_id):
+    animal = Animal.query.get(animal_id)
+    if not animal:
+        return {'error': "Animal not found"}, 404
+    
+    if request.method == "GET": 
+        medical_records = MedicalRecord.query.filter_by(animal_id=animal_id).all()
+        return jsonify([record.to_dict() for record in medical_records]), 200
+    
+    if request.method == "POST":
+        data = request.get_json()
+
+        # Check required fields
+        required_fields = ["diagnosis", "treatment", "date_of_record"]
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            return {'error': f'Missing required fields: {", ".join(missing_fields)}'}, 400
+
+        # Function to safely parse dates
+        def parse_date(date_str, field_name):
+            if date_str:
+                try:
+                    return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%SZ')
+                except ValueError:
+                    return {'error': f'Invalid date format for {field_name}. Use ISO 8601 format.'}, 400
+            return None
+
+        # Convert all date fields
+        date_of_record = parse_date(data.get('date_of_record'), 'date_of_record')
+        rabies_date = parse_date(data.get('rabies_date'), 'rabies_date')
+        snap_date = parse_date(data.get('snap_date'), 'snap_date')
+        dhpp_date = parse_date(data.get('dhpp_date'), 'dhpp_date')
+
+        # Check if any date parsing returned an error
+        for date_field in [date_of_record, rabies_date, snap_date, dhpp_date]:
+            if isinstance(date_field, tuple):  # Means a validation error occurred
+                return date_field
+
+        # Create new medical record
+        new_record = MedicalRecord(
+            animal_id=animal.id,
+            diagnosis=data['diagnosis'],
+            treatment=data['treatment'],
+            allergies=data.get('allergies'),
+            existing_conditions=data.get('existing_conditions'),
+            rabies_shot=data.get('rabies_shot'),
+            rabies_date=rabies_date,
+            snap_shot=data.get('snap_shot'),
+            snap_date=snap_date,
+            dhpp_shot=data.get('dhpp_shot'),
+            dhpp_date=dhpp_date,
+            date_of_record=date_of_record
+        )
+
+        db.session.add(new_record)
+        db.session.commit()
+        return jsonify(new_record.to_dict()), 201

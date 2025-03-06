@@ -20,13 +20,12 @@ class User(db.Model, SerializerMixin):
     email = db.Column(db.String(100), unique=True, nullable=False)
     phone = db.Column(db.String(25), unique=True)
     role = db.Column(db.Enum(RoleEnum), nullable=False)
-
-    # Relationships
-    owned_shelter = db.relationship('Shelter', back_populates='owner', foreign_keys='Shelter.owner_id')  
-
+    
     sent_messages = db.relationship('Message', foreign_keys='Message.sender_id', back_populates='sender')
     received_messages = db.relationship('Message', foreign_keys='Message.recipient_id', back_populates='recipient')
     
+    serialize_rules = ('-password_hash',)
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -58,14 +57,13 @@ class Shelter(db.Model, SerializerMixin):
     zipcode = db.Column(db.String(10), nullable=False)
     about = db.Column(db.String(500))
     
-    # Foreign Key
-    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))  
-
-    # Relationships
-    owner = db.relationship('User', back_populates='owned_shelter', foreign_keys=[owner_id])  
-    animals = db.relationship('Animal', back_populates='shelter')  # Shelter owns many animals
-
-    serialize_rules = ('-owner.password_hash',)  # Exclude owner password when serializing shelter
+    
+    worker_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    workers = db.relationship('User', backref='shelters')
+    animals = db.relationship('Animal', back_populates='shelter')
+    
+    serialize_rules = ('-worker_id') 
+    
     def to_dict(self):
         result = {
             'id': self.id,
@@ -77,9 +75,9 @@ class Shelter(db.Model, SerializerMixin):
             'state': self.state.name,
             'zipcode': self.zipcode,
             'about': self.about,
-            # Exclude owner details to avoid recursion
         }
         return result
+
 
 class Animal(db.Model, SerializerMixin):
     __tablename__ = "animals"
@@ -101,30 +99,33 @@ class Animal(db.Model, SerializerMixin):
     shelter_id = db.Column(db.Integer, db.ForeignKey('shelters.id'))  # Foreign key for shelter
    
     
-    shelter = db.relationship('Shelter', back_populates='animals')  # Shelter owns many animals
-    medical_records = db.relationship('MedicalRecord', back_populates='animal')  # Animal has many medical records
-    messages = db.relationship('Message', back_populates='animal')  # Messages linked to animals (optional)
-   
+    shelter = db.relationship('Shelter', back_populates='animals')
+    medical_records = db.relationship('MedicalRecord', back_populates='animal')
+    
+    serialize_rules = ('-shelter.id')  
+    
     def to_dict(self):
-            # Convert Enum fields to their string values
-            animal_dict = {
-                'id': self.id,
-                'created_at': self.created_at,
-                'updated_at': self.updated_at,
-                'name': self.name,
-                'rescue_date': self.rescue_date,
-                'rescue_info': self.rescue_info,
-                'species': self.species,
-                'breed': self.breed,
-                'age': self.age,
-                'sex': self.sex.value if self.sex else None,  # Convert Enum to string
-                'weight': self.weight,
-                'description': self.description,
-                'special_needs': self.special_needs,
-                'status': self.status.value if self.status else None,  # Convert Enum to string
-                'shelter_id': self.shelter_id,
-            }
-            return animal_dict
+        animal_dict = {
+            'id': self.id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,  # Format datetime if available
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,  # Format datetime if available
+            'name': self.name,
+            'rescue_date': self.rescue_date.isoformat() if self.rescue_date else None,  # Format rescue date if available
+            'rescue_info': self.rescue_info,  # Assuming rescue_info is a field
+            'species': self.species,
+            'breed': self.breed,
+            'age': self.age,
+            'sex': self.sex.value if self.sex else None,  # Convert Enum to string
+            'weight': self.weight,
+            'description': self.description,
+            'special_needs': self.special_needs,
+            'status': self.status.value if self.status else None,  # Convert Enum to string
+            'shelter_name': self.shelter.name if self.shelter else None,  # Get shelter name
+            'location': f"{self.shelter.city}, {self.shelter.state.value}" if self.shelter else None,  # Get shelter city and state
+            'medical_records': [record.to_dict() for record in self.medical_records],  # Serialize medical records if any
+        }
+        return animal_dict
+
    
 
 class MedicalRecord(db.Model, SerializerMixin):
@@ -147,6 +148,25 @@ class MedicalRecord(db.Model, SerializerMixin):
     date_of_record = db.Column(db.DateTime, default=datetime.utcnow)
     
     animal = db.relationship('Animal', back_populates='medical_records')  # Each medical record is linked to an animal
+    
+    serialize_rules = ('-animal_id',)
+
+    def to_dict(self):
+        return {
+        "id": self.id,
+        "animal_id": self.animal_id,
+        "diagnosis": self.diagnosis,
+        "treatment": self.treatment,
+        "allergies": self.allergies,
+        "existing_conditions": self.existing_conditions,
+        "rabies_shot": self.rabies_shot,
+        "rabies_date": self.rabies_date.isoformat() if self.rabies_date else None,
+        "snap_shot": self.snap_shot,
+        "snap_date": self.snap_date.isoformat() if self.snap_date else None,
+        "dhpp_shot": self.dhpp_shot,
+        "dhpp_date": self.dhpp_date.isoformat() if self.dhpp_date else None,
+        "date_of_record": self.date_of_record.isoformat() if self.date_of_record else None
+        }
 
 
 class Message(db.Model, SerializerMixin):
@@ -158,14 +178,11 @@ class Message(db.Model, SerializerMixin):
     sender_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Foreign key for sender
     recipient_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Foreign key for recipient
     content = db.Column(db.Text, nullable=False)
-    animal_id = db.Column(db.Integer, db.ForeignKey('animals.id'), nullable=True)  # Optional foreign key for animal-related messages
     
     sender = db.relationship('User', foreign_keys=[sender_id], back_populates='sent_messages')
     recipient = db.relationship('User', foreign_keys=[recipient_id], back_populates='received_messages')
-    animal = db.relationship('Animal', back_populates='messages')
 
 # Reverse relationships for User and Animal
 
 User.sent_messages = db.relationship('Message', foreign_keys='Message.sender_id', back_populates='sender')
 User.received_messages = db.relationship('Message', foreign_keys='Message.recipient_id', back_populates='recipient')
-Animal.messages = db.relationship('Message', back_populates='animal')
