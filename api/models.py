@@ -105,6 +105,27 @@ class Animal(db.Model, SerializerMixin):
     medical_records = db.relationship('MedicalRecord', back_populates='animal')  # Animal has many medical records
     messages = db.relationship('Message', back_populates='animal')  # Messages linked to animals (optional)
    
+    def to_dict(self):
+            # Convert Enum fields to their string values
+            animal_dict = {
+                'id': self.id,
+                'created_at': self.created_at,
+                'updated_at': self.updated_at,
+                'name': self.name,
+                'rescue_date': self.rescue_date,
+                'rescue_info': self.rescue_info,
+                'species': self.species,
+                'breed': self.breed,
+                'age': self.age,
+                'sex': self.sex.value if self.sex else None,  # Convert Enum to string
+                'weight': self.weight,
+                'description': self.description,
+                'special_needs': self.special_needs,
+                'status': self.status.value if self.status else None,  # Convert Enum to string
+                'shelter_id': self.shelter_id,
+            }
+            return animal_dict
+   
 
 class MedicalRecord(db.Model, SerializerMixin):
     __tablename__ = "medical_records"

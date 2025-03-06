@@ -5,7 +5,8 @@ from flask_socketio import SocketIO, emit
 from werkzeug.security import generate_password_hash
 import os
 from config import app, db, migrate, api
-from models import db, User, Shelter
+from models import db, User, Shelter, Animal
+
 
 def home():
     return ''
@@ -179,3 +180,84 @@ def shelter_by_id(id):
     
     return shelter.to_dict(), 200
         
+from datetime import datetime
+
+@app.route('/animals', methods = ['GET', 'POST'])
+def all_animals():
+    
+    if request.method == 'GET':
+        all_animals = Animal.query.all()
+        results = [animal.to_dict() for animal in all_animals]
+        return jsonify(results), 200
+    
+    elif request.method == 'POST':
+        data = request.get_json()
+        
+        # Convert rescue_date string to a datetime object if provided
+        rescue_date_str = data.get('rescue_date')
+        if rescue_date_str:
+            rescue_date = datetime.strptime(rescue_date_str, '%Y-%m-%dT%H:%M:%SZ')
+        else:
+            rescue_date = datetime.utcnow()  # Default to current time if no rescue_date is provided
+        
+        # Create a new Animal instance from the request data
+        new_animal = Animal(
+            name=data.get('name'),
+            rescue_date=rescue_date,
+            rescue_info=data.get('rescue_info'),
+            species=data.get('species'),
+            breed=data.get('breed'),
+            age=data.get('age'),
+            sex=data.get('sex'),
+            weight=data.get('weight'),
+            description=data.get('description'),
+            special_needs=data.get('special_needs'),
+            status=data.get('status'),
+            shelter_id=data.get('shelter_id'),
+        )
+        
+        db.session.add(new_animal)
+        db.session.commit()
+        
+        return jsonify(new_animal.to_dict()), 201
+
+from datetime import datetime
+
+@app.route('/animals/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
+def animal_by_id(id):
+    animal = Animal.query.filter(Animal.id == id).first()
+    
+    if animal is None: 
+        return {'error': "Animal not found"}, 404
+    
+    if request.method == 'GET':
+        return animal.to_dict(), 200
+    
+    elif request.method == "DELETE": 
+        db.session.delete(animal)
+        db.session.commit()
+        return (), 204
+    
+    elif request.method == "PATCH": 
+        data = request.get_json()
+        
+        # Handle rescue_date field conversion if it's provided
+        if 'rescue_date' in data:
+            rescue_date_str = data.get('rescue_date')
+            if rescue_date_str:
+                try:
+                    # Convert the string to a datetime object
+                    rescue_date = datetime.strptime(rescue_date_str, '%Y-%m-%dT%H:%M:%SZ')
+                    animal.rescue_date = rescue_date
+                except ValueError:
+                    return {'error': 'Invalid date format for rescue_date. Use ISO 8601 format.'}, 400
+        
+        # Update other fields
+        for field in data:
+            if field != 'rescue_date':  # Don't overwrite rescue_date here since we handled it separately
+                setattr(animal, field, data[field])
+        
+        db.session.add(animal)
+        db.session.commit()
+    
+    return animal.to_dict(), 200
