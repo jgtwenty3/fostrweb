@@ -264,18 +264,21 @@ def animal_by_id(id):
 
 @app.route('/animals/<int:animal_id>/medical_records', methods=['GET', 'POST'])
 def manage_medical_records(animal_id):
+    # Retrieve the animal
     animal = Animal.query.get(animal_id)
     if not animal:
         return {'error': "Animal not found"}, 404
     
-    if request.method == "GET": 
+    if request.method == "GET":
+        # Fetch medical records for the specific animal
         medical_records = MedicalRecord.query.filter_by(animal_id=animal_id).all()
         return jsonify([record.to_dict() for record in medical_records]), 200
     
     if request.method == "POST":
+        # Get data from the request
         data = request.get_json()
 
-        # Check required fields
+        # Check for required fields
         required_fields = ["diagnosis", "treatment", "date_of_record"]
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
@@ -285,12 +288,12 @@ def manage_medical_records(animal_id):
         def parse_date(date_str, field_name):
             if date_str:
                 try:
-                    return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%SZ')
+                    return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S')
                 except ValueError:
-                    return {'error': f'Invalid date format for {field_name}. Use ISO 8601 format.'}, 400
+                    return {'error': f'Invalid date format for {field_name}. Use ISO 8601 format (e.g., YYYY-MM-DDTHH:MM:SS)'}, 400
             return None
 
-        # Convert all date fields
+        # Parse the dates
         date_of_record = parse_date(data.get('date_of_record'), 'date_of_record')
         rabies_date = parse_date(data.get('rabies_date'), 'rabies_date')
         snap_date = parse_date(data.get('snap_date'), 'snap_date')
@@ -298,7 +301,7 @@ def manage_medical_records(animal_id):
 
         # Check if any date parsing returned an error
         for date_field in [date_of_record, rabies_date, snap_date, dhpp_date]:
-            if isinstance(date_field, tuple):  # Means a validation error occurred
+            if isinstance(date_field, tuple):  # Means an error occurred
                 return date_field
 
         # Create new medical record
@@ -320,3 +323,61 @@ def manage_medical_records(animal_id):
         db.session.add(new_record)
         db.session.commit()
         return jsonify(new_record.to_dict()), 201
+
+
+@app.route('/animals/<int:animal_id>/medical_records/<int:medical_record_id>', methods=['GET', 'PATCH', 'DELETE'])
+def edit_medical_records(animal_id, medical_record_id):
+    # Fetch the animal
+    animal = Animal.query.get(animal_id)
+    if not animal:
+        return {'error': 'Animal not found'}, 404
+
+    # Fetch the medical record for the specific animal
+    medical_record = MedicalRecord.query.filter_by(id=medical_record_id, animal_id=animal_id).first()
+    if not medical_record:
+        return {'error': 'Medical record not found'}, 404
+    
+    # GET method to retrieve the medical record
+    if request.method == 'GET':
+        return jsonify(medical_record.to_dict()), 200
+
+    # PATCH method to update the medical record
+    if request.method == 'PATCH':
+        data = request.get_json()
+
+        # Function to safely parse dates
+        def parse_date(date_str):
+            if date_str:
+                try:
+                    return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S')
+                except ValueError:
+                    return None
+            return None
+
+        # Convert date fields to datetime objects if they exist
+        if 'rabies_date' in data:
+            data['rabies_date'] = parse_date(data['rabies_date'])
+        if 'snap_date' in data:
+            data['snap_date'] = parse_date(data['snap_date'])
+        if 'dhpp_date' in data:
+            data['dhpp_date'] = parse_date(data['dhpp_date'])
+        if 'date_of_record' in data:
+            data['date_of_record'] = parse_date(data['date_of_record'])
+
+        # Optionally, update fields of the medical record
+        for key, value in data.items():
+            if hasattr(medical_record, key):
+                setattr(medical_record, key, value)
+
+        # Manually update the "updated_at" field
+        medical_record.updated_at = datetime.utcnow()
+
+        db.session.commit()
+        return jsonify(medical_record.to_dict()), 200
+
+    # DELETE method to remove the medical record
+    if request.method == 'DELETE':
+        db.session.delete(medical_record)
+        db.session.commit()
+        return jsonify({'message': 'Medical record deleted successfully'}), 200
+

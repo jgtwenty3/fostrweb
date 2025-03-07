@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+:root {
+  --background: var(--color-gray-100);
+  --foreground: var(--color-darkBlue);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-fostrBlue:#38B7FF;
+  --color-darkBlue:#1A5B80;
+}
+
+/* @media (prefers-color-scheme: dark) {
+  :root {
+    --background: var(--color-darkBlue);
+    --foreground: var(--foreground);
+  }
+} */
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('/fonts/Poppins/Fonts/OTF/Poppins-Regular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* Supreme Font */
+@font-face {
+  font-family: 'Supreme';
+  src: url('/fonts/Supreme/Fonts/OTF/Supreme-Medium.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Poppins', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Supreme', serif;
+}

@@ -20,11 +20,18 @@ class User(db.Model, SerializerMixin):
     email = db.Column(db.String(100), unique=True, nullable=False)
     phone = db.Column(db.String(25), unique=True)
     role = db.Column(db.Enum(RoleEnum), nullable=False)
+    shelter_id = db.Column(db.Integer, db.ForeignKey('shelters.id'))  
     
+    shelter = db.relationship('Shelter', back_populates='workers')  
+    posts = db.relationship('Post', back_populates='user')
+    comments = db.relationship('Comment', back_populates='user')
+    likes = db.relationship('Like', back_populates='user')
     sent_messages = db.relationship('Message', foreign_keys='Message.sender_id', back_populates='sender')
     received_messages = db.relationship('Message', foreign_keys='Message.recipient_id', back_populates='recipient')
+   
     
-    serialize_rules = ('-password_hash',)
+    
+    serialize_rules = ('-password_hash', '-shelter_id')
 
     def to_dict(self):
         return {
@@ -33,6 +40,7 @@ class User(db.Model, SerializerMixin):
             'last_name': self.last_name,
             'email': self.email,
             'role': self.role.name if self.role else None,
+            'shelter': self.shelter.name if self.shelter else None,
         }
 
     def set_password(self, password):
@@ -57,8 +65,6 @@ class Shelter(db.Model, SerializerMixin):
     zipcode = db.Column(db.String(10), nullable=False)
     about = db.Column(db.String(500))
     
-    
-    worker_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     workers = db.relationship('User', backref='shelters')
     animals = db.relationship('Animal', back_populates='shelter')
     
@@ -75,6 +81,7 @@ class Shelter(db.Model, SerializerMixin):
             'state': self.state.name,
             'zipcode': self.zipcode,
             'about': self.about,
+            'workers': [worker.to_dict() for worker in self.workers],
         }
         return result
 
@@ -101,6 +108,7 @@ class Animal(db.Model, SerializerMixin):
     
     shelter = db.relationship('Shelter', back_populates='animals')
     medical_records = db.relationship('MedicalRecord', back_populates='animal')
+    posts = db.relationship('Post', back_populates = "animal")
     
     serialize_rules = ('-shelter.id')  
     
@@ -186,3 +194,87 @@ class Message(db.Model, SerializerMixin):
 
 User.sent_messages = db.relationship('Message', foreign_keys='Message.sender_id', back_populates='sender')
 User.received_messages = db.relationship('Message', foreign_keys='Message.recipient_id', back_populates='recipient')
+
+
+class Post(db.Model, SerializerMixin):
+    __tablename__ = "posts"
+    
+    id = db.Column(db.Integer, primary_key=True, unique=True, autoincrement=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # Foreign key for user
+    animal_id = db.Column(db.Integer, db.ForeignKey('animals.id'), nullable=True)  
+    caption = db.Column(db.String(500), nullable=False)  # Caption for the post
+    image_url = db.Column(db.String(500))  # URL for the image or video
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship('User', back_populates='posts')  # Each post is associated with a user
+    comments = db.relationship('Comment', back_populates='post', cascade='all, delete-orphan')  # Comments on the post
+    likes = db.relationship('Like', back_populates='post', cascade='all, delete-orphan')  # Likes on the post
+    animal = db.relationship('Animal', back_populates="posts")
+
+    
+    serialize_rules = ('-user_id','-animal.posts')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'animal': self.animal.to_dict() if self.animal else None,
+            'caption': self.caption,
+            'image_url': self.image_url,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+            'user': self.user.to_dict(),  # Include user details for the post
+            'comments': [comment.to_dict() for comment in self.comments],  # Serialize comments
+            'likes_count': len(self.likes),  # Show the count of likes
+        }
+    
+
+class Comment(db.Model, SerializerMixin):
+    __tablename__ = 'comments'
+    
+    id = db.Column(db.Integer, primary_key=True, unique=True, autoincrement=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # Foreign key for user
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)  # Foreign key for post
+    content = db.Column(db.Text, nullable=False)  # The comment content
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', back_populates='comments')
+    post = db.relationship('Post', back_populates='comments')
+    
+    serialize_rules = ('-post_id', '-user_id')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'post_id': self.post_id,
+            'content': self.content,
+            'created_at': self.created_at.isoformat(),
+            'user': self.user.to_dict(),  # Include user details in comment
+        }
+
+class Like(db.Model, SerializerMixin):
+    __tablename__ = 'likes'
+    
+    id = db.Column(db.Integer, primary_key=True, unique=True, autoincrement=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # Foreign key for user
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)  # Foreign key for post
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', back_populates='likes')
+    post = db.relationship('Post', back_populates='likes')
+    
+    serialize_rules = ('-user_id', 'post_id')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'post_id': self.post_id,
+            'created_at': self.created_at.isoformat(),
+            'user': self.user.to_dict(),
+        }
+
+
