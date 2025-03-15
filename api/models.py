@@ -65,7 +65,7 @@ class Shelter(db.Model, SerializerMixin):
     zipcode = db.Column(db.String(10), nullable=False)
     about = db.Column(db.String(500))
     
-    workers = db.relationship('User', backref='shelters')
+    workers = db.relationship('User', back_populates='shelter')
     animals = db.relationship('Animal', back_populates='shelter')
     
     serialize_rules = ('-worker_id') 

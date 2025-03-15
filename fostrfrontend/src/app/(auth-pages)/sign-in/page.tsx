@@ -2,6 +2,8 @@
 import Link from 'next/link'
 import React, { useState } from 'react'
 import { Input } from '../Components/Input'
+import { login } from '@/app/lib/api/api'
+import { useRouter } from 'next/navigation'
 
 
 export default function SignInPage() {
@@ -9,30 +11,32 @@ export default function SignInPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    
-    // Replace with your actual sign-in logic
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
     try {
-      // Example sign-in logic (replace with your backend request)
-      console.log("Signing in with:", email, password)
-      // On successful sign-in, redirect or handle success
+      const user = await login({ email, password });
+
+      console.log("User logged in:", user);
+      router.push("/admin"); // Change to the route you want after login
     } catch (err) {
-      setError("Invalid credentials. Please try again.")
+      setError("Invalid email or password. Please try again.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="flex justify-center items-center min-h-screen">
       <form
-        className="flex flex-col w-full max-w-sm px-4 py-6 rounded-lg shadow-lg sm:flex-1 sm:items-center border-2 border-darkBlue"
+        className="flex flex-col w-full max-w-sm px-4 py-6 rounded-lg shadow-lg sm:flex-1 border-2 border-darkBlue"
         onSubmit={handleSubmit}
       >
-        <h1 className="text-2xl font-medium text-darkBlue text-center">Sign in</h1>
+        <h1 className="text-2xl font-medium text-darkBlue text-center uppercase ">Sign in</h1>
         <p className="text-sm text-darkBlue text-center">
           Don't have an account?{' '}
           <Link className="text-fostrBlue font-medium underline" href="/sign-up">
@@ -46,7 +50,7 @@ export default function SignInPage() {
         )}
         
         <div className="flex flex-col gap-4 mt-8 text-fostrBlue">
-        <label htmlFor="email" className="text-darkBlue">Email </label>
+        <label htmlFor="email" className="text-darkBlue font-semibold">Email </label>
           <Input
             name="email"
             type="email"
@@ -57,7 +61,7 @@ export default function SignInPage() {
             className=''
           />
           <div className="flex justify-between items-center">
-            <label htmlFor="password" className="text-darkBlue">Password </label>
+            <label htmlFor="password" className="text-darkBlue font-semibold">Password </label>
             
           </div>
           <Input
@@ -76,7 +80,7 @@ export default function SignInPage() {
             </Link>
           <button
             type="submit"
-            className="bg-fostrBlue hover:bg-blue-700 text-white px-4 py-2 uppercase mt-4"
+            className="bg-fostrBlue hover:bg-blue-700 text-white px-4 py-2 uppercase mt-4 rounded-full"
             disabled={loading}
           >
             {loading ? "Signing In..." : "Sign In"}

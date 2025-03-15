@@ -28,6 +28,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const response = await fetch(`${API_URL}/check_session`, {
           method: "GET",
+          headers: { "Content-Type": "application/json" },
           credentials: "include", // Ensure cookies are sent with the request
         });
 
