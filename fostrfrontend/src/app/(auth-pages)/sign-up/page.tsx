@@ -1,11 +1,14 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { Input } from '../Components/Input'
 import Link from 'next/link'
-import { createShelter, signUp } from '@/app/lib/api/api'
+import { checkSession, createShelter, signUp } from '@/app/lib/api/api'
+import { useRouter } from 'next/navigation'
+import { AuthContext } from '@/app/Context/AuthContext'
 
 export default function SignUpPage() {
+  const { user, loading: userLoading } = useContext(AuthContext);
   const [step, setStep] = useState(1)
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
@@ -25,44 +28,66 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  const router = useRouter()
+
+  useEffect(() => {
+    if (user) {
+      // Redirect based on the user's role
+      if (user.role === 'owner') {
+        router.push("/admin");
+      } else if (user.role === 'user') {
+        router.push("/UserFeed");
+      }
+    }
+  }, [user, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
   
     try {
-      if (step === 1 && role === "owner") {
-        setStep(2);
-        setLoading(false);
-        return;
+      // Step 1: Sign up the user
+      if (step === 1) {
+        console.log("Signing up user:", { firstName, lastName, email, password, role });
+
+        // Sign up the user
+        const userResponse = await signUp({ first_name:firstName, last_name:lastName, email, password, role });
+        console.log(userResponse)
+
+        console.log("User signed up successfully:", userResponse);
+
+        // Check the session to validate user role
+        const sessionResponse = await checkSession(); 
+        console.log("Session Response:", sessionResponse);  // Log the session to inspect it
+
+        if (sessionResponse?.role === 'owner') {
+          // If the user is an Owner, proceed to Step 2
+          setStep(2);
+        } else {
+          // Redirect to a different page if not Owner
+          router.push("/UserFeed"); // Or a page for normal users
+        }
       }
   
-      console.log("Signing up user:", { firstName, lastName, email, password, role });
-  
-      // Sign up the user
-      const userResponse = await signUp({ first_name: firstName, last_name: lastName, email, password, role });
-  
-      console.log("User signed up successfully:", userResponse);
+      // Handle shelter creation step (Step 2) after session has been confirmed
+      if (step === 2 && role === "owner") {
+        console.log("Creating shelter:", { shelterName, shelterEmail, shelterPhone, shelterStreetAddress, shelterCity, shelterState, shelterZipcode, shelterAbout });
 
-      
-  
-      // Create shelter if role is owner
-      if (role === "owner") {
-        console.log("Creating shelter:", { shelterName, shelterEmail, shelterPhone });
         const shelterResponse = await createShelter({
           name: shelterName,
           email: shelterEmail,
           phone: shelterPhone,
-          streetAddress: shelterStreetAddress,
+          street_address: shelterStreetAddress,
           city: shelterCity,
           state: shelterState,
           zipcode: shelterZipcode,
           about: shelterAbout,
         });
+
         console.log("Shelter created successfully:", shelterResponse);
+        router.push("/admin")
       }
-  
-      // Handle success (Redirect, show success message, etc.)
     } catch (err: any) {
       console.error("Error during sign-up:", err);
       setError(err.message || "Something went wrong");
@@ -71,6 +96,11 @@ export default function SignUpPage() {
     }
   };
   
+
+  if (userLoading) {
+    return <div>Loading...</div>; // You can return a loading state while waiting for user data
+  }
+
   return (
     <div className="flex justify-center items-center min-h-screen">
       <form

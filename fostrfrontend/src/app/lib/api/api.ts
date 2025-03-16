@@ -5,7 +5,7 @@ export async function signUp(userData: {
   last_name: string;
   email: string;
   password: string;
-  role?: string;
+  role: string;
 }) {
   try {
     const res = await fetch(`${API_BASE_URL}/sign-up`, {
@@ -99,7 +99,7 @@ export async function createShelter(shelterData:{
   name:string,
   email:string,
   phone:string,
-  streetAddress: string,
+  street_address: string,
   city:string,
   state:string,
   zipcode:string,

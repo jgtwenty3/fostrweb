@@ -1,17 +1,29 @@
 "use client"
 import Link from 'next/link'
-import React, { useState } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { Input } from '../Components/Input'
 import { login } from '@/app/lib/api/api'
 import { useRouter } from 'next/navigation'
-
+import { AuthContext } from '@/app/Context/AuthContext'
 
 export default function SignInPage() {
+  const { user, loading: userLoading } = useContext(AuthContext);
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    if (user) {
+      // Redirect based on the user's role
+      if (user.role === 'User') {
+        router.push("/UserFeed");
+      } else if (user.role === 'Owner') {
+        router.push("/admin");
+      }
+    }
+  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,9 +31,9 @@ export default function SignInPage() {
     setLoading(true);
 
     try {
-      const user = await login({ email, password });
+      const loggedInUser = await login({ email, password });
 
-      console.log("User logged in:", user);
+      console.log("User logged in:", loggedInUser);
       router.push("/admin"); // Change to the route you want after login
     } catch (err) {
       setError("Invalid email or password. Please try again.");
@@ -29,6 +41,13 @@ export default function SignInPage() {
       setLoading(false);
     }
   };
+
+  // Check if user data is available and loading is done
+  if (userLoading) {
+    return <div>Loading...</div>; // You can return a loading state while waiting for user data
+  }
+
+  console.log(user);
 
   return (
     <div className="flex justify-center items-center min-h-screen">
@@ -62,7 +81,6 @@ export default function SignInPage() {
           />
           <div className="flex justify-between items-center">
             <label htmlFor="password" className="text-darkBlue font-semibold">Password </label>
-            
           </div>
           <Input
             type="password"

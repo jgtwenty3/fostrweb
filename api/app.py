@@ -7,7 +7,7 @@ import os
 from config import app, db, migrate, api
 from models import db, User, Shelter, Animal, MedicalRecord
 from datetime import datetime
-
+from enums import RoleEnum
 
 def home():
     return ''
@@ -21,18 +21,21 @@ def signup():
         return jsonify({'error': "Email already exists"}), 400
 
     # Check for required fields
-    required_fields = ['first_name', 'last_name', 'email', 'password']
+    required_fields = ['first_name', 'last_name', 'email', 'password', 'role']
     for field in required_fields:
         if field not in data:
             return jsonify({'error': f'Missing {field}'}), 400
 
     try:
+        # Ensure the role is valid (using RoleEnum)
+        role_value = RoleEnum[data['role'].lower()]  # Get the RoleEnum by name (case-insensitive)
+        
         # Create new user
         new_user = User(
             first_name=data['first_name'],
             last_name=data['last_name'],
             email=data['email'],
-            role=data.get('role', 'user')
+            role=role_value  # Store the RoleEnum directly
         )
 
         # Set the user's password hash
@@ -42,11 +45,16 @@ def signup():
         db.session.add(new_user)
         db.session.commit()
 
-        # Store user ID in session
+        # Store user ID and role in session
         session['user_id'] = new_user.id
+        session['user_role'] = new_user.role.value  # Store role in session
 
-
-        return jsonify({'message': 'User created successfully','user_id': session.get('user_id')}), 201
+        # Return response with role as string value
+        return jsonify({
+            'message': 'User created successfully',
+            'user_id': session.get('user_id'),
+            'role': new_user.role.value  # Return the string value of the role
+        }), 201
 
     except Exception as e:
         # Rollback the session in case of an error
@@ -108,15 +116,17 @@ def login():
 @app.route('/check_session', methods=['GET'])
 def check_session():
     if 'user_id' in session:
-        # User is logged in, return user data or status
-        return jsonify({
-            'message': 'Session active',
-            'user_id': session['user_id'],
-            'user_role': session['user_role']
-        })
-    else:
-        # No session, return unauthorized
-        return jsonify({'error': 'Unauthorized'}), 401
+        user = User.query.get(session['user_id'])  # Fetch user from DB
+        if user:
+            return jsonify({
+                'id': user.id,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'email': user.email,
+                'role': session.get('user_role')  # Default role if missing
+            }), 200
+    return jsonify({'error': 'Unauthorized'}), 401
+
 
 @app.route('/logout', methods = ['DELETE'])
 def logout():

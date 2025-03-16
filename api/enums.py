@@ -1,21 +1,21 @@
 from enum import Enum
 
 class SexEnum(Enum):
-    Male = "Male"
-    Female = "Female"
+    male = "male"
+    female = "female"
 
 class AnimalStatusEnum(Enum):
-    available= "Available"
-    fostered= "Fostered"
+    available= "available"
+    fostered= "fostered"
     transport= "In Transport"
     
 
 class RoleEnum(Enum):
-    owner = "Owner"
-    worker = "Worker"
-    foster = "Foster"
-    transporter = "Transporter"
-    user = "User"
+    owner = "owner"
+    worker = "worker"
+    foster = "foster"
+    transporter = "transporter"
+    user = "user"
 
 
 class StatesEnum(Enum):

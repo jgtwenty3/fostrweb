@@ -1,14 +1,15 @@
 "use client"
 import React, { createContext, useState, useEffect, ReactNode } from "react";
+import { useRouter } from 'next/navigation'
 
-interface User {
-  id: number;
-  name: string;
-  email: string;
-}
 
 interface AuthContextType {
-  user: User | null;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  } | null;
   loading: boolean;
 }
 
@@ -18,10 +19,11 @@ export const AuthContext = createContext<AuthContextType>({
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthContextType['user']>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL; // Accessing the API URL
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
   useEffect(() => {
     const checkSession = async () => {
@@ -29,19 +31,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const response = await fetch(`${API_URL}/check_session`, {
           method: "GET",
           headers: { "Content-Type": "application/json" },
-          credentials: "include", // Ensure cookies are sent with the request
+          credentials: "include", // Ensure cookies are included if needed
         });
 
-        if (!response.ok) {
-          throw new Error("Unauthorized");
-        }
 
         const data = await response.json();
-        setUser(data); // Set the user if logged in
+        
+
+        // Map session data to match your context structure
+        setUser({
+          id: data.id, // Use the 'id' from the session data
+          name: `${data.first_name} ${data.last_name}`, // Combine first and last name
+          email: data.email, // Use the 'email' from the session data
+          role: data.role, // Use the 'role' from the session data
+        });
       } catch (error) {
-        setUser(null); // If an error occurs, the user is not logged in
+        console.error("Session check error:", error);
+        setUser(null);
       } finally {
-        setLoading(false); // Loading is complete
+        setLoading(false);
       }
     };
 
